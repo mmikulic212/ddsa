@@ -54,7 +54,7 @@ Global $CurrentTime = _NowCalc()
 Global $Autostart = 0
 Global $IniFileNamePath = StringFormat("%s\dcsdsa.ini",@MyDocumentsDir) 
 Global $APPTTIMERCHECK = 10000 ;~ msec
-Global $Version = "1.3g"
+Global $Version = "1.3h"
 Global $GithubLink = "https://github.com/mmikulic212/ddsa"
 Global $WebhookLink = 0
 Global $UpdateFinished = 0
@@ -115,7 +115,7 @@ While 1
             MsgBox(0,"About", StringFormat("Thanks for using"&@CRLF&"Version: %s"&@CRLF&"Github: %s",$Version,$GithubLink))
 
         Case $StartDCSButton
-            DCSLog("Starting DCS", 1)
+            DCSLog("Starting DCS with button", 1)
             StartDCSUpdater($DCSPath)
             DCSLog("Web Control : https://digitalcombatsimulator.com/en/personal/server/")
 
@@ -130,12 +130,12 @@ While 1
 
 	EndSwitch
 
-    If TimerDiff($TimeTimer) > 1000 Then
+    If TimerDiff($TimeTimer) >= 1000 Then
         $TimeTimer = TimerInit()
         TimeUpdate()
     EndIf
     
-    If TimerDiff($AppTimer) > $APPTTIMERCHECK Then
+    If TimerDiff($AppTimer) >= $APPTTIMERCHECK Then
         $AppTimer = TimerInit()
         AppUpdate()
     EndIf
@@ -168,9 +168,7 @@ EndFunc
 
 Func AppUpdate()
     $CurrentTime = _NowCalc()
-    If $DCSStatus = "Crashed" Then
-        StartDCSUpdater($DCSPath)
-    EndIf
+
     If ProcessExists("DCS_updater.exe") Then ;~ Check if Updater is running
         If $DCSStatus = "Checking updates ..." Then
             ConfirmDCSAppUpdate()
@@ -182,13 +180,15 @@ Func AppUpdate()
         EndIf
        
     ElseIf ProcessExists("DCS.exe") Then ;~ Check if DCS is running
+
         If $DCSStatus <> "Running" Then
             DCSLog("DCS is running", 1)
             DCSLog("Web Control : https://digitalcombatsimulator.com/en/personal/server/")
         EndIf
 
         $DCSStatus = "Running"
-        If _DateDiff("n",$DCSStartTime,$CurrentTime) > $RestartIntervalMin Then ;~ check interval
+
+        If _DateDiff("n",$DCSStartTime,$CurrentTime) >= $RestartIntervalMin Then ;~ check interval
             $DCSStatus = "Restarting"
             DCSLog("DCS restart initiated", 1)
             KillDCS()
@@ -203,13 +203,15 @@ Func AppUpdate()
         EndIf
     EndIf
 
-    
-    If ($DCSStatus = "Stopped" Or $DCSStatus = "Crashed") And $Autostart = 1 Then
-        DCSLog("Starting DCS")
-        StartDCSUpdater($DCSPath)
-        DCSLog("Web Control : https://digitalcombatsimulator.com/en/personal/server/")
+    If $Autostart = 1 Then
+        If $DCSStatus = "Stopped" Then
+            DCSLog("Starting DCS from Stopped status",1)
+            StartDCSUpdater($DCSPath)
+        ElseIf $DCSStatus = "Crashed" Then
+            DCSLog("Starting DCS from Crashed status",1)
+            StartDCSUpdater($DCSPath)
+        EndIf
     EndIf
-
 
     GUICtrlSetData($DCSStatusLabel,StringFormat("DCS Server Status: %s",$DCSStatus))
 EndFunc
@@ -224,7 +226,7 @@ Func KillDCS()
         ProcessClose("DCS_updater.exe")
     WEnd
 
-    $DCSStartTime = 0
+    $DCSStartTime = ""
     $DCSStatus = "Stopped"
 EndFunc
 
@@ -240,19 +242,20 @@ Func ConfirmDCSAppUpdate()
         EndIf
     ElseIf WinWait("DCS Updater","Update Now!",2) Then
         ControlClick("DCS Updater","Update Now!","[CLASS:Button; TEXT:Update Now!]")
-        DCSLog("DCS Updater - Update Now!")
+        DCSLog("DCS Updater - Update Now!",1)
     ElseIf WinWait("DCS Updater","Proceed",2) Then
         ControlClick("DCS Updater","Proceed","[CLASS:Button; TEXT:Proceed]")
         DCSLog("DCS Updater - Proceed")
     ElseIf WinWait("DCS Updater","Downloading",2) Then
-        DCSLog("DCS Updater - Downloading", 1)
+        If $DCSStatus <> "Downloading/Updating ..." Then
+            DCSLog("DCS Updater - Downloading",1)
+        EndIf
     EndIf
     $DCSStatus = "Downloading/Updating ..."
 EndFunc
 
 Func StartDCSUpdater($DCSPath)
     Run($DCSPath & "\bin\DCS_updater.exe")
-    DCSLog("Starting DCS",1)
     If(@error) Then
         DCSLog(StringFormat("ERROR: %s",_WinAPI_GetLastErrorMessage()) )
         Return 1
@@ -277,6 +280,3 @@ Func Webhook($Message)
     $oHTTP.Send($Packet)
 EndFunc
 
-Func DoNothing()
-    Return True
-EndFunc
